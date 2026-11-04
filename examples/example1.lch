@@ -1,0 +1,26 @@
+// comments like C++
+x = 5
+name = "lichen"
+const limit = 10
+
+fn double(n) {
+  return n * 2
+}
+
+if x > 3 and name != "" {
+  print("big")
+} elif x == 3 {
+  print("three")
+} else {
+  print("small")
+}
+
+for i in range(limit) {
+  print(i)
+}
+
+while x > 0 {
+  x--
+}
+
+nums = [1, 2, 3]
