@@ -1,0 +1,171 @@
+# lichen
+
+A tiny programming language with pythn-like syntax with c++ syntax mixed in, written in Python from scratch: a lexer, a parser, and a tree-walking interpreter in about 800 lines.
+
+```
+// Greeting and a little math
+const name = "lichen"
+print("Hello from " + name + "!")
+
+fn fib(n) {
+  if n < 2 {
+    return n
+  }
+  return fib(n - 1) + fib(n - 2)
+}
+
+for i in range(8) {
+  print("fib(" + str(i) + ") =", fib(i))
+}
+
+nums = [3, 1, 4, 1, 5]
+total = 0
+for n in nums {
+  total += n
+}
+print("sum:", total)
+```
+
+Output:
+
+```
+Hello from lichen!
+fib(0) = 0
+fib(1) = 1
+fib(2) = 1
+fib(3) = 2
+fib(4) = 3
+fib(5) = 5
+fib(6) = 8
+fib(7) = 13
+sum: 14
+```
+
+## Install
+
+Requires Python 3.9 or newer.
+
+```
+git clone https://github.com/nicholasisreallycool/lichen-lang.git
+cd lichen-lang
+pip install -e .
+```
+
+This gives you a `lichen` command. (If you prefer to keep it isolated, `pipx install -e .` works too.)
+
+## Usage
+
+```
+lichen program.lch        run a file
+lichen                    start the REPL
+lichen --tokens file.lch  show the lexer's tokens
+lichen --ast file.lch     show the parse tree
+lichen --version
+```
+
+The REPL prints the value of any bare expression, and keeps reading lines until your braces are closed:
+
+```
+lichen> 2 + 3 * 4
+14
+lichen> fn sq(n) {
+...   return n * n
+... }
+lichen> sq(7)
+49
+```
+
+## The language
+
+**Variables.** Assignment creates a variable. `const` makes one that can't be reassigned.
+
+```
+x = 5
+x += 2
+x++
+const limit = 10
+```
+
+**Types.** Numbers (`3`, `2.5`), strings (`"hi"`), booleans (`true`, `false`), and lists (`[1, 2, 3]`). Strings and lists can be indexed (`nums[0]`, `"lichen"[0]`) and looped over.
+
+**Operators.** `+ - * /`, comparisons `== != < > <= >=`, and `and`, `or`, `not`. Division gives a whole number when it divides evenly (`10 / 2` is `5`) and a decimal otherwise (`7 / 2` is `3.5`).
+
+**Control flow.**
+
+```
+if x > 3 and x != 7 {
+  print("big")
+} elif x == 3 {
+  print("three")
+} else {
+  print("small")
+}
+
+while x > 0 {
+  x--
+}
+
+for i in range(5) {
+  print(i)
+}
+```
+
+**Functions.** Functions are values and can be returned from other functions. Variables are looked up in enclosing scopes, and assigning inside a function creates a local variable.
+
+```
+fn adder(n) {
+  fn add(m) {
+    return n + m
+  }
+  return add
+}
+
+print(adder(5)(3))   // 8
+```
+
+**Comments** start with `//`.
+
+### Built-in functions
+
+| Function | What it does |
+|---|---|
+| `print(a, b, ...)` | Print values separated by spaces |
+| `len(x)` | Length of a string or list |
+| `str(x)`, `int(x)`, `float(x)` | Convert between types |
+| `range(n)`, `range(a, b)`, `range(a, b, step)` | A list of whole numbers |
+| `push(list, item)` | Add an item to the end of a list |
+| `input(prompt)` | Read a line from the user |
+
+### Errors
+
+Errors report the line (and column, for syntax errors):
+
+```
+Runtime error: Cannot reassign constant 'limit' (line 2)
+Error: Expected ')', got end of line at line 1, col 11
+```
+
+## How it works
+
+```
+source text  →  lexer  →  tokens  →  parser  →  tree  →  evaluator  →  output
+```
+
+| File | Job |
+|---|---|
+| `src/lichen/lexer.py` | Turns text into tokens (`NAME`, `NUMBER`, `{`, ...) |
+| `src/lichen/parser.py` | Recursive-descent parser that builds a syntax tree |
+| `src/lichen/nodes.py` | The tree's node types, plus a pretty-printer for `--ast` |
+| `src/lichen/evaluator.py` | Walks the tree and runs it |
+| `src/lichen/cli.py` | The `lichen` command and REPL |
+
+The parser rewrites `x++`, `x--`, `x += n` and `x -= n` into plain assignments, so the evaluator only handles one kind.
+
+## Roadmap
+
+- [ ] Tests with pytest
+- [ ] Assigning to list items (`nums[0] = 5`)
+- [ ] `break` and `continue`
+- [ ] A way for functions to modify outer variables
+- [ ] Dictionaries
+- [ ] Compile to bytecode and run on a small stack VM
