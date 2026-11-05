@@ -1,0 +1,37 @@
+// functions, recursion, lists, strings
+fn fib(n) {
+  if n < 2 {
+    return n
+  }
+  return fib(n - 1) + fib(n - 2)
+}
+
+for i in range(10) {
+  print("fib(" + str(i) + ") =", fib(i))
+}
+
+fn make_list(n) {
+  out = []
+  for i in range(n) {
+    push(out, i * i)
+  }
+  return out
+}
+
+squares = make_list(6)
+print(squares, len(squares), squares[2])
+print(7 / 2, 10 / 2, 2 + 3 * 4, -(1 + 2))
+print("lichen"[0], len("lichen"), 1 < 2 and not false)
+
+total = 0
+for n in squares {
+  total += n
+}
+print("total:", total)
+
+const limit = 3
+count = 0
+while count < limit {
+  count++
+}
+print("count:", count)
