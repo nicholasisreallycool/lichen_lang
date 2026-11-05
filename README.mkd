@@ -169,3 +169,6 @@ The parser rewrites `x++`, `x--`, `x += n` and `x -= n` into plain assignments, 
 - [ ] A way for functions to modify outer variables
 - [ ] Dictionaries
 - [ ] Compile to bytecode and run on a small stack VM
+## License
+
+MIT. Use it however you like, but keep the copyright notice in anything you build from it.
