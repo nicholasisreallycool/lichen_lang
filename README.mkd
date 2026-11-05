@@ -1,6 +1,6 @@
 # lichen
 
-A tiny programming language with pythn-like syntax with c++ syntax mixed in, written in Python from scratch: a lexer, a parser, and a tree-walking interpreter in about 800 lines.
+A tiny programming language with python-like syntax with c++ syntax mixed in, written in Python from scratch: a lexer, a parser, and a tree-walking interpreter in about 800 lines.
 
 ```
 // Greeting and a little math
