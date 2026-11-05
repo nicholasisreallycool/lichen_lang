@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>lichen: a tiny programming language</title>
+<meta name="description" content="lichen is a tiny programming language with Python's feel and a few C++ touches, built from scratch in about 800 lines of Python.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8C%BF%3C/text%3E%3C/svg%3E">
+<style>
+:root{--ink:#1d2a1b;--muted:#4b5b47;--moss-d:#2f5a2b;--moss:#5a8a3e;--sage:#d6e4c3;--line:#d3e0c5;--paper:#fbfdf8;
+--sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace}
+*{box-sizing:border-box}
+@media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+body{margin:0;background:#fff;color:var(--ink);font:17px/1.65 var(--sans);-webkit-text-size-adjust:100%}
+a{color:var(--moss-d);text-underline-offset:3px}
+a:hover{color:var(--moss)}
+:focus-visible{outline:3px solid var(--moss);outline-offset:3px;border-radius:4px}
+.wrap{max-width:760px;margin:0 auto;padding:0 24px;position:relative;z-index:1}
+.corner{position:absolute;top:0;width:clamp(150px,24vw,230px);height:auto;pointer-events:none}
+.corner.l{left:0}.corner.r{right:0}
+.sage{--a:#d6e4c3;--b:#c4d9ab;--c:#b3cd95;--d:#a2c07f}
+.gold{--a:#f3e19a;--b:#ead06c;--c:#e0b84a;--d:#cf9f2f}
+.gray{--a:#d5dfcb;--b:#c0cfb2;--c:#aabf9a;--d:#93ad82}
+.a{fill:var(--a)}.b{fill:var(--b)}.c{fill:var(--c)}.d{fill:var(--d)}
+nav{display:flex;justify-content:space-between;align-items:center;padding:22px 0;font-weight:600}
+nav a{text-decoration:none;margin-left:22px}
+nav a:first-child{margin-left:0;font-size:1.1rem;letter-spacing:-.01em}
+.links{display:flex;flex-wrap:wrap;justify-content:flex-end}
+header{padding:56px 0 8px}
+h1{margin:0;font-size:clamp(3.8rem,15vw,7rem);line-height:.95;font-weight:800;letter-spacing:-.045em;color:var(--moss-d)}
+.tag{margin:18px 0 10px;font-size:clamp(1.25rem,3.4vw,1.6rem);line-height:1.35;font-weight:600;letter-spacing:-.01em}
+.lede{margin:0 0 26px;color:var(--muted);max-width:60ch}
+.btns{display:flex;flex-wrap:wrap;gap:12px}
+.btn{display:inline-block;padding:11px 20px;border-radius:10px;font-weight:650;text-decoration:none;border:2px solid var(--moss-d)}
+.btn.p{background:var(--moss-d);color:#fff}.btn.p:hover{background:#244a21;color:#fff}
+.btn.s{color:var(--moss-d)}.btn.s:hover{background:var(--sage);color:var(--moss-d)}
+.rock{position:relative;margin:48px 0 0;border:1.5px solid var(--line);border-radius:16px;background:var(--paper)}
+.rock .patch{position:absolute;top:-40px;right:-30px;width:130px;height:auto;pointer-events:none}
+pre{margin:0;padding:22px 24px;overflow-x:auto;font:14.5px/1.6 var(--mono);tab-size:2}
+code{font-family:var(--mono)}
+.out{margin:0;border:0;border-top:1.5px dashed var(--line);color:var(--muted);font-size:13.5px}
+.k{color:var(--moss-d);font-weight:700}.s{color:#8a5f0e}.c{color:#66756a;font-style:italic}.n{color:#a14a1a}.f{color:#23606b}
+h2{margin:72px 0 6px;font-size:1.65rem;line-height:1.2;letter-spacing:-.02em;color:var(--moss-d)}
+h3{margin:30px 0 4px;font-size:1.02rem}
+p{margin:0 0 14px}
+dl{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:26px 44px;margin:26px 0 0}
+dl div{border-top:3px solid var(--sage);padding-top:12px}
+dt{font-weight:700}
+dd{margin:2px 0 0;color:var(--muted)}
+.copy{position:relative}
+.copy button{position:absolute;top:12px;right:12px;font:600 13px var(--sans);padding:6px 12px;border-radius:8px;border:1.5px solid var(--moss-d);background:#fff;color:var(--moss-d);cursor:pointer}
+.copy button:hover{background:var(--sage)}
+.chips code{display:inline-block;margin:0 6px 8px 0;padding:2px 10px;border-radius:999px;background:var(--sage);font-size:14px}
+footer{position:relative;margin-top:64px;padding:40px 0 150px;color:var(--muted);font-size:15px}
+footer .bed{position:absolute;left:0;right:0;bottom:0;width:100%;height:150px;pointer-events:none}
+footer p{margin:0 0 6px}
+@media (max-width:560px){.corner{width:92px;opacity:.75}nav{padding-top:78px}header{padding-top:28px}.rock .patch{right:-12px;width:96px;top:-30px}pre{font-size:13px;padding:18px}nav a{margin-left:14px}}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><symbol id="r" viewBox="-50 -50 100 100"><circle class="a" cx="38" cy="-1" r="7.8"/><circle class="a" cx="33" cy="19" r="7.2"/><circle class="a" cx="23" cy="30" r="7.3"/><circle class="a" cx="-4" cy="35" r="6.6"/><circle class="a" cx="-14" cy="37" r="7.4"/><circle class="a" cx="-31" cy="27" r="7.9"/><circle class="a" cx="-39" cy="-2" r="6.3"/><circle class="a" cx="-36" cy="-12" r="6.1"/><circle class="a" cx="-22" cy="-29" r="6.1"/><circle class="a" cx="-1" cy="-38" r="7.7"/><circle class="a" cx="20" cy="-33" r="7.0"/><circle class="a" cx="34" cy="-17" r="6.6"/><circle class="b" cx="29" cy="6" r="7.2"/><circle class="b" cx="17" cy="20" r="6.0"/><circle class="b" cx="2" cy="24" r="7.0"/><circle class="b" cx="-20" cy="21" r="6.3"/><circle class="b" cx="-29" cy="-5" r="5.5"/><circle class="b" cx="-23" cy="-18" r="6.4"/><circle class="b" cx="5" cy="-26" r="5.6"/><circle class="b" cx="21" cy="-19" r="6.0"/><circle class="c" cx="15" cy="-2" r="6.9"/><circle class="c" cx="3" cy="13" r="5.5"/><circle class="c" cx="-9" cy="9" r="6.6"/><circle class="c" cx="-14" cy="-8" r="5.9"/><circle class="c" cx="3" cy="-17" r="5.3"/><circle class="d" r="7"/></symbol><symbol id="m1" viewBox="-50 -30 100 60"><circle cx="9" cy="-7" r="11" fill="#3f7034"/><circle cx="-32" cy="15" r="15" fill="#9bc16f"/><circle cx="-13" cy="11" r="9" fill="#7aa653"/><circle cx="32" cy="9" r="12" fill="#2f5a2b"/><circle cx="31" cy="1" r="10" fill="#9bc16f"/><circle cx="-11" cy="-3" r="9" fill="#2f5a2b"/><circle cx="-19" cy="7" r="8" fill="#5a8a3e"/><circle cx="-8" cy="0" r="15" fill="#7aa653"/><circle cx="21" cy="-4" r="11" fill="#3f7034"/><circle cx="-12" cy="-4" r="12" fill="#3f7034"/><circle cx="-22" cy="7" r="12" fill="#7aa653"/><circle cx="24" cy="7" r="11" fill="#2f5a2b"/><circle cx="-25" cy="6" r="10" fill="#7aa653"/><circle cx="-16" cy="10" r="12" fill="#5a8a3e"/></symbol><symbol id="m2" viewBox="-50 -30 100 60"><circle cx="1" cy="9" r="15" fill="#7aa653"/><circle cx="-17" cy="5" r="14" fill="#2f5a2b"/><circle cx="-27" cy="-1" r="14" fill="#9bc16f"/><circle cx="-28" cy="4" r="10" fill="#9bc16f"/><circle cx="-21" cy="1" r="12" fill="#7aa653"/><circle cx="-26" cy="-2" r="11" fill="#5a8a3e"/><circle cx="10" cy="6" r="12" fill="#7aa653"/><circle cx="6" cy="10" r="11" fill="#5a8a3e"/><circle cx="13" cy="12" r="8" fill="#9bc16f"/><circle cx="-1" cy="4" r="10" fill="#9bc16f"/><circle cx="-27" cy="7" r="13" fill="#7aa653"/><circle cx="19" cy="13" r="10" fill="#3f7034"/><circle cx="26" cy="14" r="11" fill="#9bc16f"/><circle cx="23" cy="6" r="12" fill="#3f7034"/></symbol></defs></svg>
+<svg class="corner l" viewBox="0 0 230 210" aria-hidden="true"><use href="#r" class="sage" x="-6" y="-14" width="140" height="140" transform="rotate(10 64 56)"/><use href="#r" class="gold" x="127" y="3" width="62" height="62" transform="rotate(40 158 34)"/><use href="#r" class="gray" x="-4" y="110" width="76" height="76" transform="rotate(80 34 148)"/><use href="#r" class="sage" x="99" y="105" width="46" height="46" transform="rotate(120 122 128)"/></svg>
+<svg class="corner r" viewBox="0 0 230 210" aria-hidden="true"><use href="#r" class="gray" x="104" y="-6" width="132" height="132" transform="rotate(70 170 60)"/><use href="#r" class="sage" x="55" y="1" width="58" height="58" transform="rotate(20 84 30)"/><use href="#r" class="gold" x="165" y="121" width="62" height="62" transform="rotate(100 196 152)"/><use href="#r" class="sage" x="116" y="100" width="40" height="40" transform="rotate(50 136 120)"/></svg>
+
+<div class="wrap">
+<nav>
+  <a href="#top">lichen</a>
+  <div class="links"><a href="#install">Install</a><a href="#tour">Tour</a><a href="https://github.com/nicholasisreallycool/lichen-lang">GitHub</a></div>
+</nav>
+
+<header id="top">
+  <h1>lichen</h1>
+  <p class="tag">A tiny programming language that grows on you.</p>
+  <p class="lede">Python's feel with a few C++ touches. A lexer, a parser, and an interpreter, built from scratch in about 800 lines of Python.</p>
+  <div class="btns"><a class="btn p" href="https://github.com/nicholasisreallycool/lichen-lang">View on GitHub</a><a class="btn s" href="#install">Install it</a></div>
+</header>
+
+<main>
+<div class="rock">
+<svg class="patch" viewBox="0 0 120 120" aria-hidden="true"><use href="#r" class="sage" x="0" y="0" width="120" height="120" transform="rotate(25 60 60)"/><use href="#r" class="gold" x="75" y="9" width="50" height="50" transform="rotate(60 100 34)"/></svg>
+<pre><code><span class="c">// Greeting and a little math</span>
+<span class="k">const</span> name = <span class="s">"lichen"</span>
+<span class="f">print</span>(<span class="s">"Hello from "</span> + name + <span class="s">"!"</span>)
+
+<span class="k">fn</span> <span class="f">fib</span>(n) {
+  <span class="k">if</span> n &lt; <span class="n">2</span> {
+    <span class="k">return</span> n
+  }
+  <span class="k">return</span> <span class="f">fib</span>(n - <span class="n">1</span>) + <span class="f">fib</span>(n - <span class="n">2</span>)
+}
+
+<span class="k">for</span> i <span class="k">in</span> <span class="f">range</span>(<span class="n">8</span>) {
+  <span class="f">print</span>(<span class="s">"fib("</span> + <span class="f">str</span>(i) + <span class="s">") ="</span>, <span class="f">fib</span>(i))
+}</code></pre>
+<pre class="out" aria-label="Output"><code>Hello from lichen!
+fib(0) = 0
+fib(1) = 1
+fib(2) = 1
+fib(3) = 2
+fib(4) = 3
+fib(5) = 5
+fib(6) = 8
+fib(7) = 13</code></pre>
+</div>
+
+<h2>What it's like</h2>
+<dl>
+  <div><dt>Familiar syntax</dt><dd>Braces, no semicolons, and <code>and</code>, <code>or</code>, <code>not</code>. If you know Python or C++, you can already read it.</dd></div>
+  <div><dt>A const that means it</dt><dd>Values declared with <code>const</code> can't be reassigned, and the interpreter enforces it.</dd></div>
+  <div><dt>Functions you can pass around</dt><dd>Return one function from another and it remembers its variables.</dd></div>
+  <div><dt>Errors that point</dt><dd>Syntax and runtime errors tell you the line, and for syntax errors the column.</dd></div>
+  <div><dt>A REPL</dt><dd>Run <code>lichen</code> with no file and try things out live.</dd></div>
+  <div><dt>Small enough to remix</dt><dd>The lexer, parser, and evaluator live in separate short files. Fork it and grow your own language.</dd></div>
+</dl>
+
+<h2 id="install">Install</h2>
+<p>You need Python 3.9 or newer.</p>
+<div class="rock copy">
+<button type="button" data-copy>Copy</button>
+<pre><code id="cmds">git clone https://github.com/nicholasisreallycool/lichen-lang.git
+cd lichen-lang
+pip install -e .
+lichen examples/demo.lch</code></pre>
+</div>
+<p style="margin-top:14px">Run <code>lichen</code> on its own to open the REPL.</p>
+
+<h2 id="tour">A quick tour</h2>
+<h3>Variables and lists</h3>
+<div class="rock"><pre><code>x = <span class="n">5</span>
+x += <span class="n">2</span>
+x++
+<span class="k">const</span> limit = <span class="n">10</span>
+nums = [<span class="n">3</span>, <span class="n">1</span>, <span class="n">4</span>]
+<span class="f">print</span>(nums[<span class="n">0</span>], <span class="f">len</span>(nums))</code></pre></div>
+
+<h3>Control flow</h3>
+<div class="rock"><pre><code><span class="k">if</span> x &gt; <span class="n">3</span> <span class="k">and</span> x != <span class="n">7</span> {
+  <span class="f">print</span>(<span class="s">"big"</span>)
+} <span class="k">elif</span> x == <span class="n">3</span> {
+  <span class="f">print</span>(<span class="s">"three"</span>)
+} <span class="k">else</span> {
+  <span class="f">print</span>(<span class="s">"small"</span>)
+}
+
+<span class="k">while</span> x &gt; <span class="n">0</span> {
+  x--
+}</code></pre></div>
+
+<h3>Functions and closures</h3>
+<div class="rock"><pre><code><span class="k">fn</span> <span class="f">adder</span>(n) {
+  <span class="k">fn</span> <span class="f">add</span>(m) {
+    <span class="k">return</span> n + m
+  }
+  <span class="k">return</span> add
+}
+
+<span class="f">print</span>(<span class="f">adder</span>(<span class="n">5</span>)(<span class="n">3</span>))   <span class="c">// 8</span></code></pre></div>
+
+<h3>Built-in functions</h3>
+<p class="chips"><code>print</code><code>len</code><code>str</code><code>int</code><code>float</code><code>range</code><code>input</code><code>push</code></p>
+</main>
+</div>
+
+<footer>
+<div class="wrap">
+  <p>Released under the MIT license.</p>
+  <p>Copyright 2026 nicholasisreallycool.</p>
+  <p><a href="https://github.com/nicholasisreallycool/lichen-lang">Source on GitHub</a></p>
+</div>
+<svg class="bed" viewBox="0 0 1200 150" preserveAspectRatio="xMidYMax slice" aria-hidden="true"><use href="#m2" x="-93" y="40" width="147" height="147"/><use href="#m1" x="-49" y="38" width="163" height="163"/><use href="#m2" x="28" y="43" width="152" height="152"/><use href="#m2" x="110" y="60" width="115" height="115"/><use href="#m1" x="183" y="51" width="115" height="115"/><use href="#m1" x="218" y="39" width="147" height="147"/><use href="#m2" x="303" y="52" width="132" height="132"/><use href="#m1" x="345" y="35" width="155" height="155"/><use href="#m2" x="421" y="50" width="124" height="124"/><use href="#m2" x="478" y="39" width="136" height="136"/><use href="#m1" x="553" y="52" width="133" height="133"/><use href="#m2" x="628" y="48" width="118" height="118"/><use href="#m1" x="664" y="32" width="167" height="167"/><use href="#m1" x="737" y="37" width="138" height="138"/><use href="#m2" x="813" y="40" width="141" height="141"/><use href="#m2" x="874" y="29" width="160" height="160"/><use href="#m1" x="949" y="51" width="127" height="127"/><use href="#m1" x="1006" y="47" width="134" height="134"/><use href="#m2" x="1069" y="49" width="118" height="118"/><use href="#m1" x="1106" y="37" width="148" height="148"/><use href="#m1" x="-24" y="74" width="128" height="128"/><use href="#m1" x="93" y="76" width="109" height="109"/><use href="#m1" x="180" y="74" width="109" height="109"/><use href="#m1" x="293" y="80" width="101" height="101"/><use href="#m1" x="382" y="81" width="111" height="111"/><use href="#m1" x="489" y="84" width="106" height="106"/><use href="#m1" x="606" y="92" width="93" height="93"/><use href="#m1" x="723" y="89" width="95" height="95"/><use href="#m1" x="805" y="72" width="126" height="126"/><use href="#m1" x="901" y="72" width="125" height="125"/><use href="#m1" x="1021" y="85" width="109" height="109"/><use href="#m1" x="1122" y="71" width="119" height="119"/><use href="#r" class="gold" x="137" y="57" width="46" height="46" transform="rotate(15 160 80)"/><use href="#r" class="sage" x="442" y="58" width="56" height="56" transform="rotate(70 470 86)"/><use href="#r" class="gold" x="770" y="58" width="40" height="40" transform="rotate(120 790 78)"/><use href="#r" class="sage" x="1000" y="44" width="60" height="60" transform="rotate(5 1030 74)"/><use href="#r" class="gray" x="621" y="73" width="38" height="38" transform="rotate(30 640 92)"/></svg>
+</footer>
+
+<script>
+document.querySelector("[data-copy]").addEventListener("click", function () {
+  var btn = this;
+  navigator.clipboard.writeText(document.getElementById("cmds").innerText).then(function () {
+    btn.textContent = "Copied";
+    setTimeout(function () { btn.textContent = "Copy"; }, 1800);
+  });
+});
+</script>
+</body>
+</html>
