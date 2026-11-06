@@ -70,6 +70,14 @@ class Return:
     line: int = 0
 
 @dataclass
+class Break:
+    line: int = 0
+
+@dataclass
+class Continue:
+    line: int = 0
+
+@dataclass
 class Branch:
     cond: Any
     body: list

@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 KEYWORDS = {
     "const", "fn", "if", "elif", "else", "for", "in", "while",
-    "return", "and", "or", "not", "true", "false",
+    "return", "and", "or", "not", "true", "false", "break", "continue",
 }
 
 TWO_CHAR = {"==", "!=", "<=", ">=", "++", "--", "+=", "-="}

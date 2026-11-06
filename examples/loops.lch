@@ -1,0 +1,20 @@
+nums = [3, 8, 12, 5, 20]
+for n in nums {
+  if n % 2 != 0 {
+    continue
+  }
+  if n > 15 {
+    break
+  }
+  print(n)
+}
+
+word = "lichen"
+count = 0
+for ch in word {
+  if ch in "aeiou" {
+    count++
+  }
+}
+print(count, "vowels")
+print(3 in [1, 2, 3], "ich" in word, "z" not in word)

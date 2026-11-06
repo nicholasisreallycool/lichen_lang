@@ -15,6 +15,14 @@ class LichenRuntimeError(Exception):
         return self.message
 
 
+class BreakSignal(Exception):
+    pass
+
+
+class ContinueSignal(Exception):
+    pass
+
+
 class ReturnSignal(Exception):
     def __init__(self, value, line):
         self.value = value
@@ -238,7 +246,18 @@ class Interpreter:
 
     def exec_While(self, node, env):
         while self.eval(node.cond, env):
-            self.exec_block(node.body, env)
+            try:
+                self.exec_block(node.body, env)
+            except BreakSignal:
+                break
+            except ContinueSignal:
+                continue
+
+    def exec_Break(self, node, env):
+        raise BreakSignal()
+
+    def exec_Continue(self, node, env):
+        raise ContinueSignal()
 
     def exec_For(self, node, env):
         iterable = self.eval(node.iterable, env)
@@ -246,7 +265,12 @@ class Interpreter:
             raise LichenRuntimeError(f"Can't loop over a {type_name(iterable)}")
         for item in list(iterable):
             env.assign(node.var, item)
-            self.exec_block(node.body, env)
+            try:
+                self.exec_block(node.body, env)
+            except BreakSignal:
+                break
+            except ContinueSignal:
+                continue
 
     def exec_FnDef(self, node, env):
         env.assign(node.name, Function(node.name, node.params, node.body, env))
@@ -302,6 +326,18 @@ class Interpreter:
         if op == "!=":
             return not values_equal(left, right)
 
+        if op in ("in", "not in"):
+            if isinstance(right, str):
+                if not isinstance(left, str):
+                    raise LichenRuntimeError("Can only look for a string inside a string")
+                found = left in right
+            elif isinstance(right, list):
+                found = any(values_equal(left, item) for item in right)
+            else:
+                raise LichenRuntimeError(
+                    f"Can't use '{op}' with a {type_name(right)} on the right")
+            return found if op == "in" else not found
+
         if op == "+":
             if is_number(left) and is_number(right):
                 return left + right
@@ -322,7 +358,7 @@ class Interpreter:
             return {"<": left < right, ">": left > right,
                     "<=": left <= right, ">=": left >= right}[op]
 
-        # - * /
+        # - * / %
         if not (is_number(left) and is_number(right)):
             raise LichenRuntimeError(
                 f"Can't use '{op}' on {type_name(left)} and {type_name(right)}")

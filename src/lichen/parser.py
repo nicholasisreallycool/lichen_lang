@@ -1,6 +1,6 @@
 from lichen.nodes import (
     Num, Str, Bool, Name, ListLit, Unary, Binary, Call, Index,
-    Assign, ExprStmt, Return, Branch, If, While, For, FnDef, Program,
+    Assign, ExprStmt, Return, Break, Continue, Branch, If, While, For, FnDef, Program,
 )
 
 
@@ -22,6 +22,7 @@ class Parser:
     def __init__(self, tokens):
         self.tokens = tokens
         self.pos = 0
+        self.loop_depth = 0
 
     # ---------- helpers ----------
 
@@ -86,6 +87,12 @@ class Parser:
         self.expect("}")
         return body
 
+    def loop_block(self):
+        self.loop_depth += 1
+        body = self.block()
+        self.loop_depth -= 1
+        return body
+
     def statement(self):
         t = self.tok
         if t.type == "const":
@@ -97,7 +104,13 @@ class Parser:
         if t.type == "while":
             self.advance()
             cond = self.expression()
-            return While(cond, self.block())
+            return While(cond, self.loop_block())
+        if t.type in ("break", "continue"):
+            if self.loop_depth == 0:
+                raise self.error(f"'{t.type}' outside of a loop")
+            self.advance()
+            self.end_statement()
+            return Break(t.line) if t.type == "break" else Continue(t.line)
         if t.type == "for":
             return self.for_stmt()
         if t.type == "return":
@@ -139,7 +152,11 @@ class Parser:
             while self.match(","):
                 params.append(self.expect("NAME", "a parameter name").value)
         self.expect(")", "')'")
-        return FnDef(name.value, params, self.block(), kw.line)
+        saved_depth = self.loop_depth
+        self.loop_depth = 0  # break/continue can't reach out of a function
+        body = self.block()
+        self.loop_depth = saved_depth
+        return FnDef(name.value, params, body, kw.line)
 
     def if_stmt(self):
         self.advance()
@@ -167,7 +184,7 @@ class Parser:
         var = self.expect("NAME", "a loop variable name")
         self.expect("in", "'in'")
         iterable = self.expression()
-        return For(var.value, iterable, self.block(), kw.line)
+        return For(var.value, iterable, self.loop_block(), kw.line)
 
     def return_stmt(self):
         kw = self.advance()
@@ -204,9 +221,17 @@ class Parser:
 
     def comparison(self):
         left = self.additive()
-        while self.check("==", "!=", "<", ">", "<=", ">="):
-            t = self.advance()
-            left = Binary(t.type, left, self.additive(), t.line)
+        while True:
+            if self.check("==", "!=", "<", ">", "<=", ">=", "in"):
+                t = self.advance()
+                op = t.type
+            elif self.check("not") and self.peek().type == "in":
+                t = self.advance()
+                self.advance()
+                op = "not in"
+            else:
+                break
+            left = Binary(op, left, self.additive(), t.line)
         return left
 
     def additive(self):
