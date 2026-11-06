@@ -40,6 +40,8 @@ def repl():
             print(f"Error: {e}")
         except LichenRuntimeError as e:
             print(f"Runtime error: {e}")
+        except KeyboardInterrupt:
+            print("\nInterrupted")
         buffer = ""
 
 

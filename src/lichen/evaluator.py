@@ -1,6 +1,49 @@
 import sys
+import threading
 
 from lichen.nodes import ExprStmt
+
+# Deep recursion needs a deep C stack. Python's main thread only gets about 1 MB
+# on Windows, so a runaway lichen program could crash Python outright instead of
+# raising a clean error. We run programs on a thread with a much bigger stack.
+THREAD_STACK_BYTES = 256 * 1024 * 1024
+DEEP_RECURSION_LIMIT = 30000   # roughly 3,000+ nested lichen calls
+SAFE_RECURSION_LIMIT = 800     # used only if a big stack can't be had
+
+
+def run_with_big_stack(func):
+    """Call func() on a thread with a big stack and return its result.
+    Exceptions raised by func are re-raised here."""
+    outcome = {}
+
+    def target():
+        try:
+            outcome["value"] = func()
+        except BaseException as e:
+            outcome["error"] = e
+
+    old_size = None
+    worker = None
+    try:
+        old_size = threading.stack_size(THREAD_STACK_BYTES)
+        worker = threading.Thread(target=target, daemon=True)
+        sys.setrecursionlimit(DEEP_RECURSION_LIMIT)
+        worker.start()
+    except (ValueError, RuntimeError):
+        worker = None
+    finally:
+        if old_size is not None:
+            threading.stack_size(old_size)
+
+    if worker is None:  # no big stack available: run here, but stay shallow
+        sys.setrecursionlimit(SAFE_RECURSION_LIMIT)
+        return func()
+
+    while worker.is_alive():  # short waits keep Ctrl+C responsive on Windows
+        worker.join(0.1)
+    if "error" in outcome:
+        raise outcome["error"]
+    return outcome.get("value")
 
 
 class LichenRuntimeError(Exception):
@@ -190,7 +233,7 @@ BUILTINS = [
 
 class Interpreter:
     def __init__(self):
-        sys.setrecursionlimit(6000)
+        self._cancel = threading.Event()
         self.globals = Env()
         for b in BUILTINS:
             self.globals.vars[b.name] = b
@@ -198,6 +241,18 @@ class Interpreter:
     def run(self, program, echo=False):
         """Run a parsed program. With echo=True (the REPL), bare top-level
         expressions print their value."""
+        self._cancel.clear()
+        try:
+            run_with_big_stack(lambda: self._run(program, echo))
+        except KeyboardInterrupt:
+            self._cancel.set()  # tells the worker thread to stop
+            raise
+
+    def _check_cancel(self):
+        if self._cancel.is_set():
+            raise KeyboardInterrupt()
+
+    def _run(self, program, echo):
         try:
             for stmt in program.body:
                 if echo and isinstance(stmt, ExprStmt):
@@ -246,6 +301,7 @@ class Interpreter:
 
     def exec_While(self, node, env):
         while self.eval(node.cond, env):
+            self._check_cancel()
             try:
                 self.exec_block(node.body, env)
             except BreakSignal:
@@ -264,6 +320,7 @@ class Interpreter:
         if not isinstance(iterable, (list, str)):
             raise LichenRuntimeError(f"Can't loop over a {type_name(iterable)}")
         for item in list(iterable):
+            self._check_cancel()
             env.assign(node.var, item)
             try:
                 self.exec_block(node.body, env)
@@ -358,7 +415,7 @@ class Interpreter:
             return {"<": left < right, ">": left > right,
                     "<=": left <= right, ">=": left >= right}[op]
 
-        # - * / %
+        # - * /
         if not (is_number(left) and is_number(right)):
             raise LichenRuntimeError(
                 f"Can't use '{op}' on {type_name(left)} and {type_name(right)}")
@@ -388,6 +445,7 @@ class Interpreter:
         return obj[index]
 
     def eval_Call(self, node, env):
+        self._check_cancel()
         fn = self.eval(node.func, env)
         args = [self.eval(a, env) for a in node.args]
 
