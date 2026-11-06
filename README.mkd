@@ -1,6 +1,6 @@
 # lichen
 
-A tiny programming language with Python's feel and a few C++ touches, written in Python from scratch: a lexer, a parser, and a tree-walking interpreter in about 1,000 lines.
+A tiny programming language with Python's feel and a few C++ touches, written in Python from scratch: a lexer, a parser, and a tree-walking interpreter in about 1,200 lines.
 
 ```
 // Greeting and a little math
@@ -75,6 +75,8 @@ lichen> sq(7)
 49
 ```
 
+Press Ctrl+C to stop a program that's running too long.
+
 ## The language
 
 **Variables.** Assignment creates a variable. `const` makes one that can't be reassigned.
@@ -86,7 +88,48 @@ x++
 const limit = 10
 ```
 
-**Types.** Numbers (`3`, `2.5`), strings (`"hi"`), booleans (`true`, `false`), and lists (`[1, 2, 3]`). Strings and lists can be indexed (`nums[0]`, `"lichen"[0]`) and looped over.
+**Types.** Numbers (`3`, `2.5`), strings (`"hi"`), booleans (`true`, `false`), lists (`[1, 2, 3]`), and dictionaries (`{"a": 1}`).
+
+**Lists and strings** can be indexed (`nums[0]`, `"lichen"[0]`, `nums[-1]` for the last item) and looped over. List items can be changed in place:
+
+```
+nums = [5, 3, 8]
+nums[0] = 10
+nums[1] += 4
+nums[2]++
+print(nums)          // [10, 7, 9]
+```
+
+Lists are shared, not copied: after `b = a`, changing `b[0]` changes `a` too. `const` protects the name, not the contents, so a `const` list can still be edited. Strings can't be changed.
+
+**Dictionaries** map keys to values. Keys can be strings or numbers, and they keep the order you added them.
+
+```
+person = {"name": "lichen", "version": 3}
+person["version"]++
+person["tags"] = ["tiny", "python"]
+print(person["name"])     // lichen
+print("version" in person) // true
+print(len(person))        // 3
+
+for key in person {       // loops over the keys
+  print(key)
+}
+```
+
+Reading a key that isn't there is an error, so check with `in` first. This counts words:
+
+```
+counts = {}
+for w in ["the", "fox", "the"] {
+  if w in counts {
+    counts[w] += 1
+  } else {
+    counts[w] = 1
+  }
+}
+print(counts)             // {"the": 2, "fox": 1}
+```
 
 **Operators.**
 
@@ -95,17 +138,9 @@ const limit = 10
 | Math | `+ - * / %` |
 | Comparison | `== != < > <= >=` |
 | Logic | `and`, `or`, `not` |
-| Membership | `in`, `not in` |
+| Membership | `in`, `not in` (lists, strings, and dictionary keys) |
 
 Division gives a whole number when it divides evenly (`10 / 2` is `5`) and a decimal otherwise (`7 / 2` is `3.5`). `%` follows Python's rules, so `-7 % 3` is `2`.
-
-`in` works on lists and strings:
-
-```
-print(3 in [1, 2, 3])        // true
-print("ich" in "lichen")     // true
-print("z" not in "lichen")   // true
-```
 
 **Control flow.**
 
@@ -156,6 +191,8 @@ fn adder(n) {
 print(adder(5)(3))   // 8
 ```
 
+Recursion works to a few thousand calls deep, then stops with a clear "Stack overflow" error.
+
 **Comments** start with `//`.
 
 ### Built-in functions
@@ -163,15 +200,17 @@ print(adder(5)(3))   // 8
 | Function | What it does |
 |---|---|
 | `print(a, b, ...)` | Print values separated by spaces |
-| `len(x)` | Length of a string or list |
+| `len(x)` | Length of a string, list, or dictionary |
 | `str(x)`, `int(x)`, `float(x)` | Convert between types |
 | `range(n)`, `range(a, b)`, `range(a, b, step)` | A list of whole numbers |
 | `push(list, item)` | Add an item to the end of a list |
+| `keys(dict)`, `values(dict)` | The keys or values of a dictionary, as a list |
+| `remove(dict, key)` | Delete a key from a dictionary |
 | `input(prompt)` | Read a line from the user |
 
 ### Examples
 
-The `examples/` folder has runnable programs: `example1.lch`, `demo.lch` (functions, recursion, lists), `fizzbuzz.lch`, and `loops.lch` (`break`, `continue`, and `in`).
+The `examples/` folder has runnable programs: `example1.lch`, `demo.lch` (functions, recursion, lists), `fizzbuzz.lch`, `loops.lch` (`break`, `continue`, and `in`), and `lists_and_dicts.lch` (a word counter, list editing, nested data).
 
 ### Errors
 
@@ -179,6 +218,7 @@ Errors report the line (and column, for syntax errors):
 
 ```
 Runtime error: Cannot reassign constant 'limit' (line 2)
+Runtime error: Key "z" not found (line 3)
 Error: Expected ')', got end of line at line 1, col 11
 Error: 'break' outside of a loop at line 1, col 1
 ```
@@ -199,23 +239,32 @@ source text  →  lexer  →  tokens  →  parser  →  tree  →  evaluator  �
 
 The parser rewrites `x++`, `x--`, `x += n` and `x -= n` into plain assignments, so the evaluator only handles one kind.
 
+## Running the tests
+
+```
+pip install pytest
+pytest
+```
+
+The suite covers the lexer, the parser, every language feature, and every error message, and it also runs each program in `examples/`.
+
 ## Roadmap
 
 Done:
 
+- [x] Tests with pytest
 - [x] Modulo operator (`%`)
 - [x] `break` and `continue`
 - [x] `in` and `not in`
+- [x] Assigning to list items (`nums[0] = 5`)
+- [x] Dictionaries
 
 Next:
 
-- [ ] Tests with pytest
-- [ ] Assigning to list items (`nums[0] = 5`)
 - [ ] f-strings (`f"fib({i}) = {fib(i)}"`)
 - [ ] String methods (`upper`, `split`, `join`, `replace`)
 - [ ] Slicing (`nums[1:3]`)
 - [ ] A way for functions to modify outer variables
-- [ ] Dictionaries
 - [ ] `try` / `except`
 - [ ] Compile to bytecode and run on a small stack VM
 

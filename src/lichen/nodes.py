@@ -50,6 +50,15 @@ class Index:
     index: Any
     line: int = 0
 
+@dataclass
+class Pair:
+    key: Any
+    value: Any
+
+@dataclass
+class DictLit:
+    pairs: list
+
 
 # ---------- statements ----------
 
@@ -58,6 +67,14 @@ class Assign:
     name: str
     value: Any
     const: bool = False
+    line: int = 0
+
+@dataclass
+class IndexAssign:
+    obj: Any
+    index: Any
+    value: Any
+    op: Optional[str] = None
     line: int = 0
 
 @dataclass

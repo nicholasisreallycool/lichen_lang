@@ -41,7 +41,7 @@ def test_two_character_operators(op):
     assert lex(op)[0].type == op
 
 
-@pytest.mark.parametrize("op", list("+-*/%=<>(){}[],"))
+@pytest.mark.parametrize("op", list("+-*/%=<>(){}[],:"))
 def test_one_character_tokens(op):
     assert lex(op)[0].type == op
 

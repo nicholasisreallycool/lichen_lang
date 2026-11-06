@@ -5,7 +5,7 @@ from lichen.parser import parse, ParseError
 from lichen.evaluator import Interpreter, LichenRuntimeError
 from lichen.nodes import dump
 
-VERSION = "0.2.0"
+VERSION = "0.3.0"
 OPENERS = ("(", "{", "[")
 CLOSERS = (")", "}", "]")
 

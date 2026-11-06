@@ -1,0 +1,25 @@
+// count how often each word appears
+words = ["the", "quick", "the", "fox", "the", "fox"]
+counts = {}
+for w in words {
+  if w in counts {
+    counts[w] += 1
+  } else {
+    counts[w] = 1
+  }
+}
+print(counts)
+for w in keys(counts) {
+  print(w, counts[w])
+}
+
+// change list items in place
+nums = [5, 3, 8]
+nums[0] = 10
+nums[1] += 4
+print(nums)
+
+// nested data
+person = {"name": "lichen", "version": 3}
+person["version"]++
+print(person["name"], person["version"])

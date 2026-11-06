@@ -1,4 +1,5 @@
 import re
+import threading
 
 import pytest
 
@@ -277,7 +278,7 @@ def test_echo_skips_nil_and_assignments(run):
     ('print([1][true])', "Index must be a whole number"),
     ("print(1 in 5)", "Can't use 'in' with a number on the right"),
     ('print(1 in "abc")', "Can only look for a string inside a string"),
-    ("print(len(5))", "len() needs a string or list"),
+    ("print(len(5))", "len() needs a string, list, or dictionary"),
     ('print(int("abc"))', "Can't convert"),
     ("print(range(1.5))", "range() only takes whole numbers"),
     ("print(range(1, 5, 0))", "range() step can't be 0"),
@@ -306,3 +307,58 @@ def test_error_inside_a_function_reports_its_own_line(run):
 def test_runaway_recursion_is_a_clean_error(run):
     with pytest.raises(LichenRuntimeError, match="Stack overflow"):
         run("fn f(n) {\n  return f(n + 1)\n}\nf(0)")
+
+
+def test_deep_but_legitimate_recursion_works(run):
+    src = (
+        "fn total(n) {\n  if n == 0 {\n    return 0\n  }\n  return n + total(n - 1)\n}\n"
+        "print(total(500))"
+    )
+    assert out(run, src) == "125250"
+
+
+def test_steps_down_to_a_smaller_stack_when_a_big_one_is_refused(run, monkeypatch):
+    """Windows can refuse a large thread stack. We should retry smaller, not give up."""
+    real_stack_size = threading.stack_size
+    real_start = threading.Thread.start
+    requested = {"size": 0}
+    asked_for = []
+
+    def tracking_stack_size(*args):
+        if args:
+            requested["size"] = args[0]
+            asked_for.append(args[0] // (1024 * 1024))
+        return real_stack_size(*args)
+
+    def picky_start(self):
+        if requested["size"] > 20 * 1024 * 1024:
+            raise RuntimeError("can't start new thread")
+        return real_start(self)
+
+    monkeypatch.setattr(threading, "stack_size", tracking_stack_size)
+    monkeypatch.setattr(threading.Thread, "start", picky_start)
+    src = (
+        "fn total(n) {\n  if n == 0 {\n    return 0\n  }\n  return n + total(n - 1)\n}\n"
+        "print(total(300))"
+    )
+    assert out(run, src) == "45150"
+    assert asked_for[:3] == [64, 32, 16]  # tried big, stepped down, then settled
+
+
+def test_still_works_when_no_extra_stack_is_available(run, monkeypatch):
+    def refuse(self):
+        raise RuntimeError("can't start new thread")
+
+    monkeypatch.setattr(threading.Thread, "start", refuse)
+    assert out(run, "print(1 + 1)") == "2"
+    with pytest.raises(LichenRuntimeError, match="Stack overflow"):
+        run("fn f(n) {\n  return f(n + 1)\n}\nf(0)")
+
+
+def test_stack_size_setting_is_restored_afterwards(run):
+    threading.stack_size(2 * 1024 * 1024)
+    try:
+        run("print(1)")
+        assert threading.stack_size(0) == 2 * 1024 * 1024  # returns the previous value
+    finally:
+        threading.stack_size(0)

@@ -6,12 +6,12 @@ KEYWORDS = {
 }
 
 TWO_CHAR = {"==", "!=", "<=", ">=", "++", "--", "+=", "-="}
-ONE_CHAR = set("+-*/%=<>(){}[],")
+ONE_CHAR = set("+-*/%=<>(){}[],:")
 
 
 @dataclass
 class Token:
-    type: str      # "NUMBER", "STRING", "NAME", "NEWLINE", "EOF", or the keyword/operator text
+    type: str
     value: object
     line: int
     col: int

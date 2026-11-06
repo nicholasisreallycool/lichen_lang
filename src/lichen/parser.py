@@ -1,6 +1,6 @@
 from lichen.nodes import (
-    Num, Str, Bool, Name, ListLit, Unary, Binary, Call, Index,
-    Assign, ExprStmt, Return, Break, Continue, Branch, If, While, For, FnDef, Program,
+    Num, Str, Bool, Name, ListLit, DictLit, Pair, Unary, Binary, Call, Index,
+    Assign, IndexAssign, ExprStmt, Return, Break, Continue, Branch, If, While, For, FnDef, Program,
 )
 
 
@@ -118,6 +118,8 @@ class Parser:
         if t.type == "NAME" and self.peek().type in ("=", "+=", "-=", "++", "--"):
             return self.assignment()
         expr = self.expression()
+        if self.check("=", "+=", "-=", "++", "--"):
+            return self.index_assignment(expr)
         self.end_statement()
         return ExprStmt(expr)
 
@@ -141,6 +143,20 @@ class Parser:
             value = Binary(op.type[0], Name(name.value, name.line), Num(1), name.line)
         self.end_statement()
         return Assign(name.value, value, False, name.line)
+
+    def index_assignment(self, target):
+        """nums[0] = 5, d["a"] += 1, grid[1][2]++ ... (names are handled by assignment())"""
+        if not isinstance(target, Index):
+            raise self.error("Can't assign to this expression")
+        op = self.advance()
+        if op.type == "=":
+            value, binop = self.expression(), None
+        elif op.type in ("+=", "-="):
+            value, binop = self.expression(), op.type[0]
+        else:  # ++ or --
+            value, binop = Num(1), op.type[0]
+        self.end_statement()
+        return IndexAssign(target.obj, target.index, value, binop, op.line)
 
     def fn_def(self):
         kw = self.advance()
@@ -284,6 +300,22 @@ class Parser:
         self.expect(close, f"'{close}'")
         return items
 
+    def dict_literal(self):
+        pairs = []
+        self.skip_newlines()
+        while not self.check("}"):
+            key = self.expression()
+            self.expect(":", "':' after a dictionary key")
+            value = self.expression()
+            pairs.append(Pair(key, value))
+            self.skip_newlines()
+            if not self.match(","):
+                break
+            self.skip_newlines()
+        self.skip_newlines()
+        self.expect("}", "'}'")
+        return DictLit(pairs)
+
     def primary(self):
         t = self.tok
         if t.type == "NUMBER":
@@ -306,6 +338,9 @@ class Parser:
         if t.type == "[":
             self.advance()
             return ListLit(self.comma_list("]"))
+        if t.type == "{":
+            self.advance()
+            return self.dict_literal()
         raise self.error(f"Expected an expression, got {describe(t)}")
 
 

@@ -5,10 +5,14 @@ from lichen.nodes import ExprStmt
 
 # Deep recursion needs a deep C stack. Python's main thread only gets about 1 MB
 # on Windows, so a runaway lichen program could crash Python outright instead of
-# raising a clean error. We run programs on a thread with a much bigger stack.
-THREAD_STACK_BYTES = 256 * 1024 * 1024
-DEEP_RECURSION_LIMIT = 30000   # roughly 3,000+ nested lichen calls
-SAFE_RECURSION_LIMIT = 800     # used only if a big stack can't be had
+# raising a clean error. We run programs on a thread with a bigger stack.
+#
+# Big stacks cost real memory (Windows commits the whole stack up front), so we
+# ask for a moderate one first and step down if the OS says no.
+STACK_SIZES_MB = (64, 32, 16, 8)
+BYTES_PER_FRAME = 4096          # pessimistic guess at C stack used per Python call
+MAX_RECURSION_LIMIT = 30000
+SAFE_RECURSION_LIMIT = 600      # used only if no extra stack can be had at all
 
 
 def run_with_big_stack(func):
@@ -22,20 +26,30 @@ def run_with_big_stack(func):
         except BaseException as e:
             outcome["error"] = e
 
-    old_size = None
+    original_size = None
     worker = None
-    try:
-        old_size = threading.stack_size(THREAD_STACK_BYTES)
-        worker = threading.Thread(target=target, daemon=True)
-        sys.setrecursionlimit(DEEP_RECURSION_LIMIT)
-        worker.start()
-    except (ValueError, RuntimeError):
-        worker = None
-    finally:
-        if old_size is not None:
-            threading.stack_size(old_size)
+    for mb in STACK_SIZES_MB:
+        size = mb * 1024 * 1024
+        try:
+            # stack_size(n) returns the previous setting. (Don't call it with no
+            # arguments to "peek": on some Pythons that resets the size to default.)
+            previous = threading.stack_size(size)
+            if original_size is None:
+                original_size = previous
+            candidate = threading.Thread(target=target, daemon=True)
+            sys.setrecursionlimit(min(MAX_RECURSION_LIMIT, size // BYTES_PER_FRAME))
+            candidate.start()
+            worker = candidate
+            break
+        except (ValueError, RuntimeError):
+            continue  # the OS refused this size; try a smaller one
+    if original_size is not None:
+        try:
+            threading.stack_size(original_size)
+        except (ValueError, RuntimeError):
+            pass
 
-    if worker is None:  # no big stack available: run here, but stay shallow
+    if worker is None:  # no extra stack available: run here, but stay shallow
         sys.setrecursionlimit(SAFE_RECURSION_LIMIT)
         return func()
 
@@ -105,6 +119,8 @@ def type_name(v):
         return "string"
     if isinstance(v, list):
         return "list"
+    if isinstance(v, dict):
+        return "dictionary"
     return "function"
 
 
@@ -119,11 +135,23 @@ def to_str(v, quote=False):
         return f'"{v}"' if quote else v
     if isinstance(v, list):
         return "[" + ", ".join(to_str(x, True) for x in v) + "]"
+    if isinstance(v, dict):
+        return "{" + ", ".join(f"{to_str(k, True)}: {to_str(x, True)}" for k, x in v.items()) + "}"
     if isinstance(v, Function):
         return f"<fn {v.name}>"
     if isinstance(v, Builtin):
         return f"<builtin {v.name}>"
     return str(v)
+
+
+def is_valid_key(v):
+    return isinstance(v, str) or is_number(v)
+
+
+def check_key(v):
+    if not is_valid_key(v):
+        raise LichenRuntimeError(
+            f"Dictionary keys must be strings or numbers, not {type_name(v)}")
 
 
 def values_equal(a, b):
@@ -164,9 +192,9 @@ def _print(*args):
 
 
 def _len(x):
-    if isinstance(x, (str, list)):
+    if isinstance(x, (str, list, dict)):
         return len(x)
-    raise LichenRuntimeError(f"len() needs a string or list, got {type_name(x)}")
+    raise LichenRuntimeError(f"len() needs a string, list, or dictionary, got {type_name(x)}")
 
 
 def _str(x):
@@ -217,6 +245,28 @@ def _push(lst, item):
     return None
 
 
+def _keys(d):
+    if not isinstance(d, dict):
+        raise LichenRuntimeError(f"keys() needs a dictionary, got {type_name(d)}")
+    return list(d.keys())
+
+
+def _values(d):
+    if not isinstance(d, dict):
+        raise LichenRuntimeError(f"values() needs a dictionary, got {type_name(d)}")
+    return list(d.values())
+
+
+def _remove(d, key):
+    if not isinstance(d, dict):
+        raise LichenRuntimeError(f"remove() needs a dictionary, got {type_name(d)}")
+    check_key(key)
+    if key not in d:
+        raise LichenRuntimeError(f"Key {to_str(key, True)} not found")
+    del d[key]
+    return None
+
+
 BUILTINS = [
     Builtin("print", _print, 0, None),
     Builtin("len", _len, 1, 1),
@@ -226,6 +276,9 @@ BUILTINS = [
     Builtin("range", _range, 1, 3),
     Builtin("input", _input, 0, 1),
     Builtin("push", _push, 2, 2),
+    Builtin("keys", _keys, 1, 1),
+    Builtin("values", _values, 1, 1),
+    Builtin("remove", _remove, 2, 2),
 ]
 
 
@@ -287,6 +340,28 @@ class Interpreter:
         value = self.eval(node.value, env)
         env.assign(node.name, value, node.const)
 
+    def exec_IndexAssign(self, node, env):
+        obj = self.eval(node.obj, env)
+        index = self.eval(node.index, env)
+        value = self.eval(node.value, env)
+
+        if isinstance(obj, dict):
+            check_key(index)
+            if node.op is not None:
+                if index not in obj:
+                    raise LichenRuntimeError(f"Key {to_str(index, True)} not found")
+                value = self.apply_binary(node.op, obj[index], value)
+            obj[index] = value
+        elif isinstance(obj, list):
+            i = self.list_index(obj, index)
+            if node.op is not None:
+                value = self.apply_binary(node.op, obj[i], value)
+            obj[i] = value
+        elif isinstance(obj, str):
+            raise LichenRuntimeError("Strings can't be changed")
+        else:
+            raise LichenRuntimeError(f"Can't assign into a {type_name(obj)}")
+
     def exec_Return(self, node, env):
         value = self.eval(node.value, env) if node.value is not None else None
         raise ReturnSignal(value, node.line)
@@ -317,7 +392,7 @@ class Interpreter:
 
     def exec_For(self, node, env):
         iterable = self.eval(node.iterable, env)
-        if not isinstance(iterable, (list, str)):
+        if not isinstance(iterable, (list, str, dict)):
             raise LichenRuntimeError(f"Can't loop over a {type_name(iterable)}")
         for item in list(iterable):
             self._check_cancel()
@@ -357,6 +432,14 @@ class Interpreter:
     def eval_ListLit(self, node, env):
         return [self.eval(item, env) for item in node.items]
 
+    def eval_DictLit(self, node, env):
+        result = {}
+        for pair in node.pairs:
+            key = self.eval(pair.key, env)
+            check_key(key)
+            result[key] = self.eval(pair.value, env)
+        return result
+
     def eval_Unary(self, node, env):
         value = self.eval(node.operand, env)
         if node.op == "not":
@@ -377,7 +460,9 @@ class Interpreter:
 
         left = self.eval(node.left, env)
         right = self.eval(node.right, env)
+        return self.apply_binary(op, left, right)
 
+    def apply_binary(self, op, left, right):
         if op == "==":
             return values_equal(left, right)
         if op == "!=":
@@ -390,6 +475,8 @@ class Interpreter:
                 found = left in right
             elif isinstance(right, list):
                 found = any(values_equal(left, item) for item in right)
+            elif isinstance(right, dict):
+                found = is_valid_key(left) and left in right
             else:
                 raise LichenRuntimeError(
                     f"Can't use '{op}' with a {type_name(right)} on the right")
@@ -433,16 +520,24 @@ class Interpreter:
             return left // right
         return left / right
 
-    def eval_Index(self, node, env):
-        obj = self.eval(node.obj, env)
-        index = self.eval(node.index, env)
-        if not isinstance(obj, (list, str)):
-            raise LichenRuntimeError(f"Can't index a {type_name(obj)}")
+    def list_index(self, obj, index):
         if not isinstance(index, int) or isinstance(index, bool):
             raise LichenRuntimeError("Index must be a whole number")
         if not -len(obj) <= index < len(obj):
             raise LichenRuntimeError(f"Index {index} is out of range (length {len(obj)})")
-        return obj[index]
+        return index
+
+    def eval_Index(self, node, env):
+        obj = self.eval(node.obj, env)
+        index = self.eval(node.index, env)
+        if isinstance(obj, dict):
+            check_key(index)
+            if index not in obj:
+                raise LichenRuntimeError(f"Key {to_str(index, True)} not found")
+            return obj[index]
+        if not isinstance(obj, (list, str)):
+            raise LichenRuntimeError(f"Can't index a {type_name(obj)}")
+        return obj[self.list_index(obj, index)]
 
     def eval_Call(self, node, env):
         self._check_cancel()
