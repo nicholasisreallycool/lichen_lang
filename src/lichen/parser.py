@@ -218,7 +218,7 @@ class Parser:
 
     def term(self):
         left = self.unary()
-        while self.check("*", "/"):
+        while self.check("*", "/", "%"):
             t = self.advance()
             left = Binary(t.type, left, self.unary(), t.line)
         return left

@@ -88,7 +88,7 @@ const limit = 10
 
 **Types.** Numbers (`3`, `2.5`), strings (`"hi"`), booleans (`true`, `false`), and lists (`[1, 2, 3]`). Strings and lists can be indexed (`nums[0]`, `"lichen"[0]`) and looped over.
 
-**Operators.** `+ - * /`, comparisons `== != < > <= >=`, and `and`, `or`, `not`. Division gives a whole number when it divides evenly (`10 / 2` is `5`) and a decimal otherwise (`7 / 2` is `3.5`).
+**Operators.** `+ - * / %`, comparisons `== != < > <= >=`, and `and`, `or`, `not`. Division gives a whole number when it divides evenly (`10 / 2` is `5`) and a decimal otherwise (`7 / 2` is `3.5`).
 
 **Control flow.**
 

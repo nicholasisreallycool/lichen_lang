@@ -330,6 +330,10 @@ class Interpreter:
             return left - right
         if op == "*":
             return left * right
+        if op == "%":
+            if right == 0:
+                raise LichenRuntimeError("Modulo by zero")
+            return left % right
         if right == 0:
             raise LichenRuntimeError("Division by zero")
         if isinstance(left, int) and isinstance(right, int) and left % right == 0:
