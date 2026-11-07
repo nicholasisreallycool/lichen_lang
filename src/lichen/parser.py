@@ -1,5 +1,6 @@
+from lichen.lexer import lex
 from lichen.nodes import (
-    Num, Str, Bool, Name, ListLit, DictLit, Pair, Unary, Binary, Call, Index,
+    Num, Str, Bool, Name, ListLit, DictLit, Pair, FString, MethodCall, Unary, Binary, Call, Index,
     Assign, IndexAssign, ExprStmt, Return, Break, Continue, Branch, If, While, For, FnDef, Program,
 )
 
@@ -277,6 +278,12 @@ class Parser:
                 t = self.advance()
                 args = self.comma_list(")")
                 expr = Call(expr, args, t.line)
+            elif self.check("."):
+                t = self.advance()
+                name = self.expect("NAME", "a method name after '.'")
+                self.expect("(", f"'(' after '.{name.value}'")
+                args = self.comma_list(")")
+                expr = MethodCall(expr, name.value, args, t.line)
             elif self.check("["):
                 t = self.advance()
                 self.skip_newlines()
@@ -299,6 +306,23 @@ class Parser:
             self.skip_newlines()
         self.expect(close, f"'{close}'")
         return items
+
+    def fstring(self, tok):
+        """Turn an FSTRING token into a node: literal pieces become Str nodes and
+        each {expression} is lexed and parsed with the normal machinery."""
+        parts = []
+        for part in tok.value:
+            if isinstance(part, str):
+                parts.append(Str(part))
+                continue
+            source, line, col = part
+            sub = Parser(lex(source, line, col))
+            parts.append(sub.expression())
+            if sub.check("NEWLINE"):
+                sub.advance()
+            if not sub.check("EOF"):
+                raise sub.error(f"Unexpected {describe(sub.tok)} in f-string expression")
+        return FString(parts)
 
     def dict_literal(self):
         pairs = []
@@ -324,6 +348,9 @@ class Parser:
         if t.type == "STRING":
             self.advance()
             return Str(t.value)
+        if t.type == "FSTRING":
+            self.advance()
+            return self.fstring(t)
         if t.type in ("true", "false"):
             self.advance()
             return Bool(t.type == "true")

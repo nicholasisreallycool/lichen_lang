@@ -6,7 +6,7 @@ KEYWORDS = {
 }
 
 TWO_CHAR = {"==", "!=", "<=", ">=", "++", "--", "+=", "-="}
-ONE_CHAR = set("+-*/%=<>(){}[],:")
+ONE_CHAR = set("+-*/%=<>(){}[],:.")
 
 
 @dataclass
@@ -21,11 +21,81 @@ class LexError(Exception):
     pass
 
 
-def lex(source):
+def lex_fstring(source, i, line, line_start):
+    """Scan f"..." starting at the 'f'. Returns (parts, index_after_the_closing_quote).
+    parts is a list of plain strings and (expression_source, line, col) tuples."""
+    n = len(source)
+    start_col = i - line_start + 1
+    i += 2  # skip the f and the opening quote
+    parts, text = [], []
+    while True:
+        if i >= n or source[i] == "\n":
+            raise LexError(f"Unterminated f-string at line {line}, col {start_col}")
+        ch = source[i]
+        if ch == '"':
+            i += 1
+            break
+        if ch == "{":
+            if source[i + 1:i + 2] == "{":  # {{ is a literal {
+                text.append("{")
+                i += 2
+                continue
+            if text:
+                parts.append("".join(text))
+                text = []
+            begin = i + 1
+            j = begin
+            depth = 0
+            while True:
+                if j >= n or source[j] == "\n":
+                    raise LexError(
+                        f"Missing '}}' in f-string (or a string inside it is unterminated) "
+                        f"at line {line}, col {i - line_start + 1}")
+                cj = source[j]
+                if cj == '"':  # a string inside the expression: skip over it whole
+                    j += 1
+                    while j < n and source[j] not in '"\n':
+                        j += 1
+                    if j >= n or source[j] != '"':
+                        raise LexError(
+                            f"Missing '}}' in f-string (or a string inside it is unterminated) "
+                            f"at line {line}, col {i - line_start + 1}")
+                    j += 1
+                    continue
+                if cj == "{":
+                    depth += 1
+                elif cj == "}":
+                    if depth == 0:
+                        break
+                    depth -= 1
+                j += 1
+            chunk = source[begin:j]
+            if not chunk.strip():
+                raise LexError(f"Empty expression in f-string at line {line}, col {i - line_start + 1}")
+            parts.append((chunk, line, begin - line_start + 1))
+            i = j + 1
+            continue
+        if ch == "}":
+            if source[i + 1:i + 2] == "}":  # }} is a literal }
+                text.append("}")
+                i += 2
+                continue
+            raise LexError(
+                f"Single '}}' in f-string at line {line}, col {i - line_start + 1} "
+                f"(write '}}}}' for a literal brace)")
+        text.append(ch)
+        i += 1
+    if text:
+        parts.append("".join(text))
+    return parts, i
+
+
+def lex(source, line=1, col=1):
+    """Turn source text into tokens. line and col say where the text starts in the
+    original file (the parser uses this for expressions inside f-strings)."""
     tokens = []
     i = 0
-    line = 1
-    line_start = 0
+    line_start = 1 - col
     n = len(source)
 
     def add(type_, value, start):
@@ -69,6 +139,11 @@ def lex(source):
                 raise LexError(f"Unterminated string at line {line}, col {start - line_start + 1}")
             add("STRING", source[start + 1:i], start)
             i += 1
+
+        elif c == "f" and source[i + 1:i + 2] == '"':
+            start = i
+            parts, i = lex_fstring(source, i, line, line_start)
+            add("FSTRING", parts, start)
 
         elif c.isalpha() or c == "_":
             start = i

@@ -267,6 +267,82 @@ def _remove(d, key):
     return None
 
 
+# ---------- string methods:  "text".upper() ----------
+
+def _need_str(method, value):
+    if not isinstance(value, str):
+        raise LichenRuntimeError(f"{method}() needs a string, got {type_name(value)}")
+    return value
+
+
+def _s_upper(s):
+    return s.upper()
+
+
+def _s_lower(s):
+    return s.lower()
+
+
+def _s_strip(s):
+    return s.strip()
+
+
+def _s_split(s, sep=None):
+    if sep is None:
+        return s.split()  # no separator: split on runs of whitespace
+    _need_str("split", sep)
+    if sep == "":
+        raise LichenRuntimeError("split() separator can't be empty")
+    return s.split(sep)
+
+
+def _s_join(sep, items):
+    if not isinstance(items, list):
+        raise LichenRuntimeError(f"join() needs a list, got {type_name(items)}")
+    for i, item in enumerate(items):
+        if not isinstance(item, str):
+            raise LichenRuntimeError(
+                f"join() needs a list of strings, but item {i} is a {type_name(item)}")
+    return sep.join(items)
+
+
+def _s_replace(s, old, new):
+    _need_str("replace", old)
+    _need_str("replace", new)
+    if old == "":
+        raise LichenRuntimeError("replace() can't search for an empty string")
+    return s.replace(old, new)
+
+
+def _s_startswith(s, prefix):
+    return s.startswith(_need_str("startswith", prefix))
+
+
+def _s_endswith(s, suffix):
+    return s.endswith(_need_str("endswith", suffix))
+
+
+# name -> (function, fewest arguments, most arguments)
+STRING_METHODS = {
+    "upper": (_s_upper, 0, 0),
+    "lower": (_s_lower, 0, 0),
+    "strip": (_s_strip, 0, 0),
+    "split": (_s_split, 0, 1),
+    "join": (_s_join, 1, 1),
+    "replace": (_s_replace, 2, 2),
+    "startswith": (_s_startswith, 1, 1),
+    "endswith": (_s_endswith, 1, 1),
+}
+
+
+def arity_message(name, fewest, most, got):
+    if fewest == most == 0:
+        return f"{name}() takes no arguments but got {got}"
+    if fewest == most:
+        return f"{name}() takes {fewest} argument(s) but got {got}"
+    return f"{name}() takes {fewest} or {most} arguments but got {got}"
+
+
 BUILTINS = [
     Builtin("print", _print, 0, None),
     Builtin("len", _len, 1, 1),
@@ -439,6 +515,19 @@ class Interpreter:
             check_key(key)
             result[key] = self.eval(pair.value, env)
         return result
+
+    def eval_FString(self, node, env):
+        return "".join(to_str(self.eval(part, env)) for part in node.parts)
+
+    def eval_MethodCall(self, node, env):
+        obj = self.eval(node.obj, env)
+        args = [self.eval(a, env) for a in node.args]
+        if isinstance(obj, str) and node.name in STRING_METHODS:
+            func, fewest, most = STRING_METHODS[node.name]
+            if not fewest <= len(args) <= most:
+                raise LichenRuntimeError(arity_message(node.name, fewest, most, len(args)))
+            return func(obj, *args)
+        raise LichenRuntimeError(f"A {type_name(obj)} has no method '{node.name}'")
 
     def eval_Unary(self, node, env):
         value = self.eval(node.operand, env)

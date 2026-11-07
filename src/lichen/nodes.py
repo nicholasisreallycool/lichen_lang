@@ -51,6 +51,17 @@ class Index:
     line: int = 0
 
 @dataclass
+class FString:
+    parts: list
+
+@dataclass
+class MethodCall:
+    obj: Any
+    name: str
+    args: list
+    line: int = 0
+
+@dataclass
 class Pair:
     key: Any
     value: Any

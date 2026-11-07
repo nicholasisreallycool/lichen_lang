@@ -1,0 +1,22 @@
+// f-strings and string methods
+name = "lichen"
+version = 4
+print(f"Hello, {name.upper()}! You are on version {version}.")
+
+words = "the quick brown fox".split(" ")
+print(words)
+print(f"{len(words)} words")
+
+shout = []
+for w in words {
+  push(shout, w.upper())
+}
+print(", ".join(shout))
+
+print("  padded  ".strip() + "|")
+print("a-b-c".replace("-", "+"))
+print("lichen".startswith("lic"), "lichen".endswith("x"))
+
+for i in range(1, 4) {
+  print(f"{i} squared is {i * i}")
+}
