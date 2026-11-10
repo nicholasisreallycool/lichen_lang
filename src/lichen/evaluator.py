@@ -124,6 +124,12 @@ def type_name(v):
     return "function"
 
 
+def quote_string(s):
+    s = s.replace("\\", "\\\\").replace('"', '\\"')
+    s = s.replace("\n", "\\n").replace("\t", "\\t").replace("\r", "\\r")
+    return f'"{s}"'
+
+
 def to_str(v, quote=False):
     if v is None:
         return "nil"
@@ -132,7 +138,7 @@ def to_str(v, quote=False):
     if v is False:
         return "false"
     if isinstance(v, str):
-        return f'"{v}"' if quote else v
+        return quote_string(v) if quote else v
     if isinstance(v, list):
         return "[" + ", ".join(to_str(x, True) for x in v) + "]"
     if isinstance(v, dict):
@@ -166,6 +172,7 @@ class Env:
     def __init__(self, parent=None):
         self.vars = {}
         self.consts = set()
+        self.outer_names = set()  # names redirected to an enclosing scope by 'outer'
         self.parent = parent
 
     def lookup(self, name):
@@ -177,6 +184,16 @@ class Env:
         raise LichenRuntimeError(f"Undefined variable '{name}'")
 
     def assign(self, name, value, const=False):
+        if name in self.outer_names:
+            if const:
+                raise LichenRuntimeError(f"Can't declare '{name}' as a constant: it is an outer variable")
+            scope = self.parent
+            while scope is not None and name not in scope.vars:
+                scope = scope.parent
+            if scope is None:
+                raise LichenRuntimeError(f"There's no variable named '{name}' outside this function")
+            scope.assign(name, value)
+            return
         if name in self.consts:
             raise LichenRuntimeError(f"Cannot reassign constant '{name}'")
         self.vars[name] = value
@@ -480,6 +497,35 @@ class Interpreter:
             except ContinueSignal:
                 continue
 
+    def exec_Outer(self, node, env):
+        for name in node.names:
+            if name in env.vars:
+                raise LichenRuntimeError(
+                    f"'{name}' is already a local variable here; "
+                    f"put 'outer {name}' before using it")
+            scope = env.parent
+            while scope is not None and name not in scope.vars:
+                scope = scope.parent
+            if scope is None:
+                raise LichenRuntimeError(f"There's no variable named '{name}' outside this function")
+            env.outer_names.add(name)
+
+    def exec_Throw(self, node, env):
+        raise LichenRuntimeError(to_str(self.eval(node.value, env)))
+
+    def exec_Try(self, node, env):
+        try:
+            self.exec_block(node.body, env)
+        except LichenRuntimeError as e:
+            message = e.message
+        except RecursionError:
+            message = "Stack overflow (too much recursion)"
+        else:
+            return
+        if node.name is not None:
+            env.assign(node.name, message)
+        self.exec_block(node.handler, env)
+
     def exec_FnDef(self, node, env):
         env.assign(node.name, Function(node.name, node.params, node.body, env))
 
@@ -515,6 +561,17 @@ class Interpreter:
             check_key(key)
             result[key] = self.eval(pair.value, env)
         return result
+
+    def eval_Slice(self, node, env):
+        obj = self.eval(node.obj, env)
+        start = self.eval(node.start, env) if node.start is not None else None
+        end = self.eval(node.end, env) if node.end is not None else None
+        if not isinstance(obj, (list, str)):
+            raise LichenRuntimeError(f"Can't slice a {type_name(obj)}")
+        for bound in (start, end):
+            if bound is not None and (not isinstance(bound, int) or isinstance(bound, bool)):
+                raise LichenRuntimeError("Slice positions must be whole numbers")
+        return obj[start:end]
 
     def eval_FString(self, node, env):
         return "".join(to_str(self.eval(part, env)) for part in node.parts)

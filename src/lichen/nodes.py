@@ -62,6 +62,13 @@ class MethodCall:
     line: int = 0
 
 @dataclass
+class Slice:
+    obj: Any
+    start: Optional[Any]
+    end: Optional[Any]
+    line: int = 0
+
+@dataclass
 class Pair:
     key: Any
     value: Any
@@ -86,6 +93,23 @@ class IndexAssign:
     index: Any
     value: Any
     op: Optional[str] = None
+    line: int = 0
+
+@dataclass
+class Outer:
+    names: list
+    line: int = 0
+
+@dataclass
+class Try:
+    body: list
+    name: Optional[str]
+    handler: list
+    line: int = 0
+
+@dataclass
+class Throw:
+    value: Any
     line: int = 0
 
 @dataclass

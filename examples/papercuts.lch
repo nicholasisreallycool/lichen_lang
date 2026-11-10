@@ -1,0 +1,48 @@
+// escapes
+lines = "apples\nbananas\ncherries".split("\n")
+print(lines)
+print("tab\tseparated, \"quoted\", and a backslash: \\")
+
+// slicing
+nums = [10, 20, 30, 40, 50]
+print(nums[1:3], nums[:2], nums[-2:])
+print("lichen"[:3].upper())
+
+// outer: let a function change a variable from outside it
+count = 0
+fn bump() {
+  outer count
+  count++
+}
+bump()
+bump()
+print(f"count is {count}")
+
+fn make_counter() {
+  n = 0
+  fn next() {
+    outer n
+    n++
+    return n
+  }
+  return next
+}
+a = make_counter()
+b = make_counter()
+print(a(), a(), a(), b())
+
+// try / except / throw
+fn parse_age(text) {
+  age = int(text)
+  if age < 0 {
+    throw "age can't be negative"
+  }
+  return age
+}
+for text in ["30", "-4", "abc"] {
+  try {
+    print("age:", parse_age(text))
+  } except err {
+    print("error:", err)
+  }
+}

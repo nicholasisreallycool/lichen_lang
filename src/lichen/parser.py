@@ -1,6 +1,6 @@
 from lichen.lexer import lex
 from lichen.nodes import (
-    Num, Str, Bool, Name, ListLit, DictLit, Pair, FString, MethodCall, Unary, Binary, Call, Index,
+    Num, Str, Bool, Name, ListLit, DictLit, Pair, FString, MethodCall, Slice, Outer, Try, Throw, Unary, Binary, Call, Index,
     Assign, IndexAssign, ExprStmt, Return, Break, Continue, Branch, If, While, For, FnDef, Program,
 )
 
@@ -24,6 +24,7 @@ class Parser:
         self.tokens = tokens
         self.pos = 0
         self.loop_depth = 0
+        self.fn_depth = 0
 
     # ---------- helpers ----------
 
@@ -116,6 +117,12 @@ class Parser:
             return self.for_stmt()
         if t.type == "return":
             return self.return_stmt()
+        if t.type == "try":
+            return self.try_stmt()
+        if t.type == "throw":
+            return self.throw_stmt()
+        if t.type == "outer":
+            return self.outer_stmt()
         if t.type == "NAME" and self.peek().type in ("=", "+=", "-=", "++", "--"):
             return self.assignment()
         expr = self.expression()
@@ -145,8 +152,38 @@ class Parser:
         self.end_statement()
         return Assign(name.value, value, False, name.line)
 
+    def try_stmt(self):
+        kw = self.advance()
+        body = self.block()
+        self.skip_newlines()
+        if not self.check("except"):
+            raise self.error(f"Expected 'except' after the try block (the 'try' on line {kw.line})")
+        self.advance()
+        name = self.advance().value if self.check("NAME") else None
+        handler = self.block()
+        return Try(body, name, handler, kw.line)
+
+    def throw_stmt(self):
+        kw = self.advance()
+        value = self.expression()
+        self.end_statement()
+        return Throw(value, kw.line)
+
+    def outer_stmt(self):
+        kw = self.advance()
+        if self.fn_depth == 0:
+            self.pos -= 1  # report the error at the 'outer' keyword itself
+            raise self.error("'outer' can only be used inside a function")
+        names = [self.expect("NAME", "a variable name after 'outer'").value]
+        while self.match(","):
+            names.append(self.expect("NAME", "a variable name").value)
+        self.end_statement()
+        return Outer(names, kw.line)
+
     def index_assignment(self, target):
         """nums[0] = 5, d["a"] += 1, grid[1][2]++ ... (names are handled by assignment())"""
+        if isinstance(target, Slice):
+            raise self.error("Can't assign to a slice (a slice is a copy)")
         if not isinstance(target, Index):
             raise self.error("Can't assign to this expression")
         op = self.advance()
@@ -171,7 +208,9 @@ class Parser:
         self.expect(")", "')'")
         saved_depth = self.loop_depth
         self.loop_depth = 0  # break/continue can't reach out of a function
+        self.fn_depth += 1
         body = self.block()
+        self.fn_depth -= 1
         self.loop_depth = saved_depth
         return FnDef(name.value, params, body, kw.line)
 
@@ -287,10 +326,22 @@ class Parser:
             elif self.check("["):
                 t = self.advance()
                 self.skip_newlines()
-                index = self.expression()
-                self.skip_newlines()
-                self.expect("]", "']'")
-                expr = Index(expr, index, t.line)
+                start = None
+                if not self.check(":"):
+                    start = self.expression()
+                    self.skip_newlines()
+                if self.check(":"):  # a slice: x[a:b], x[:b], x[a:], x[:]
+                    self.advance()
+                    self.skip_newlines()
+                    end = None
+                    if not self.check("]"):
+                        end = self.expression()
+                        self.skip_newlines()
+                    self.expect("]", "']'")
+                    expr = Slice(expr, start, end, t.line)
+                else:
+                    self.expect("]", "']'")
+                    expr = Index(expr, start, t.line)
             else:
                 break
         return expr

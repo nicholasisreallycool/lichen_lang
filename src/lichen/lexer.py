@@ -3,7 +3,11 @@ from dataclasses import dataclass
 KEYWORDS = {
     "const", "fn", "if", "elif", "else", "for", "in", "while",
     "return", "and", "or", "not", "true", "false", "break", "continue",
+    "outer", "try", "except", "throw",
 }
+
+# the backslash escapes allowed inside strings
+ESCAPES = {"n": "\n", "t": "\t", "r": "\r", "\\": "\\", '"': '"'}
 
 TWO_CHAR = {"==", "!=", "<=", ">=", "++", "--", "+=", "-="}
 ONE_CHAR = set("+-*/%=<>(){}[],:.")
@@ -19,6 +23,32 @@ class Token:
 
 class LexError(Exception):
     pass
+
+
+def read_string(source, i, line, line_start):
+    """i points at the opening quote. Returns (text, index_after_the_closing_quote)."""
+    n = len(source)
+    start_col = i - line_start + 1
+    i += 1
+    chars = []
+    while i < n and source[i] != '"':
+        c = source[i]
+        if c == "\n":
+            break
+        if c == "\\":
+            nxt = source[i + 1:i + 2]
+            if nxt == "" or nxt == "\n":
+                break  # a backslash at the very end: the string never closes
+            if nxt not in ESCAPES:
+                raise LexError(f"Unknown escape '\\{nxt}' at line {line}, col {i - line_start + 1}")
+            chars.append(ESCAPES[nxt])
+            i += 2
+            continue
+        chars.append(c)
+        i += 1
+    if i >= n or source[i] != '"':
+        raise LexError(f"Unterminated string at line {line}, col {start_col}")
+    return "".join(chars), i + 1
 
 
 def lex_fstring(source, i, line, line_start):
@@ -55,7 +85,10 @@ def lex_fstring(source, i, line, line_start):
                 if cj == '"':  # a string inside the expression: skip over it whole
                     j += 1
                     while j < n and source[j] not in '"\n':
-                        j += 1
+                        if source[j] == "\\" and source[j + 1:j + 2] not in ("", "\n"):
+                            j += 2
+                        else:
+                            j += 1
                     if j >= n or source[j] != '"':
                         raise LexError(
                             f"Missing '}}' in f-string (or a string inside it is unterminated) "
@@ -83,6 +116,17 @@ def lex_fstring(source, i, line, line_start):
             raise LexError(
                 f"Single '}}' in f-string at line {line}, col {i - line_start + 1} "
                 f"(write '}}}}' for a literal brace)")
+        if ch == "\\":
+            nxt = source[i + 1:i + 2]
+            if nxt == "" or nxt == "\n":
+                raise LexError(f"Unterminated f-string at line {line}, col {start_col}")
+            if nxt not in ESCAPES:
+                hint = " (write '{{' for a literal brace)" if nxt in "{}" else ""
+                raise LexError(
+                    f"Unknown escape '\\{nxt}' at line {line}, col {i - line_start + 1}{hint}")
+            text.append(ESCAPES[nxt])
+            i += 2
+            continue
         text.append(ch)
         i += 1
     if text:
@@ -132,13 +176,8 @@ def lex(source, line=1, col=1):
 
         elif c == '"':
             start = i
-            i += 1
-            while i < n and source[i] not in '"\n':
-                i += 1
-            if i >= n or source[i] != '"':
-                raise LexError(f"Unterminated string at line {line}, col {start - line_start + 1}")
-            add("STRING", source[start + 1:i], start)
-            i += 1
+            text, i = read_string(source, i, line, line_start)
+            add("STRING", text, start)
 
         elif c == "f" and source[i + 1:i + 2] == '"':
             start = i
