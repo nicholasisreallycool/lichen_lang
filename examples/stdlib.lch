@@ -1,0 +1,16 @@
+// min, max, sum, abs, round, sort, type
+scores = [88, 92.5, 79, 95, 61]
+print(f"lowest {min(scores)}, highest {max(scores)}")
+print("average:", round(sum(scores) / len(scores), 1))
+print("sorted:", sort(scores))
+
+words = ["pear", "Apple", "fig", "banana"]
+print(sort(words))
+print(max(words), min(words))
+
+print(abs(-7), abs(2.5 - 10))
+print(round(2.5), round(3.5), round(3.14159, 2))
+
+for thing in [1, "a", [1], {"k": 1}, true, abs] {
+  print(type(thing))
+}

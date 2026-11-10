@@ -1,6 +1,6 @@
 # lichen
 
-A tiny programming language with Python's feel and a few C++ touches, written in Python from scratch: a lexer, a parser, and a tree-walking interpreter in about 1,600 lines.
+A tiny programming language with Python's feel and a few C++ touches, written in Python from scratch: a lexer, a parser, and a tree-walking interpreter in about 1,700 lines.
 
 ```
 // Greeting and a little math
@@ -348,10 +348,32 @@ The name is optional (`} except {`), `try` blocks can be nested, and `break`, `c
 | `keys(dict)`, `values(dict)` | The keys or values of a dictionary, as a list |
 | `remove(dict, key)` | Delete a key from a dictionary |
 | `input(prompt)` | Read a line from the user |
+| `min(a, b, ...)`, `max(a, b, ...)` | The smallest or largest value. Give it several values, or one list. |
+| `sum(list)` | Add up a list of numbers (an empty list gives `0`) |
+| `abs(x)` | Distance from zero: `abs(-7)` is `7` |
+| `round(x)`, `round(x, digits)` | Round to a whole number, or to that many decimal places |
+| `sort(list)` | A new sorted list. The original is left alone. |
+| `type(x)` | The kind of value, as text |
+
+`min`, `max`, and `sort` work on lists of numbers or lists of strings, and refuse to mix the two. Strings sort by character code, so capital letters come before lowercase (`sort(["b", "A", "a"])` is `["A", "a", "b"]`).
+
+`round` rounds halves to the nearest even number, like Python, so `round(2.5)` is `2` and `round(3.5)` is `4`. A negative number of digits rounds to the left of the point: `round(1234, -2)` is `1200`.
+
+`type` gives `"number"`, `"string"`, `"boolean"`, `"list"`, `"dictionary"`, `"function"`, or `"nil"`, the same words the error messages use:
+
+```
+scores = [88, 92.5, 79, 95, 61]
+print(f"lowest {min(scores)}, highest {max(scores)}")   // lowest 61, highest 95
+print(round(sum(scores) / len(scores), 1))              // 83.1
+print(sort(scores))                                     // [61, 79, 88, 92.5, 95]
+print(type(scores), type(round))                        // list function
+```
+
+These are ordinary names, so a program can still use `sum` or `max` as its own variable. It just hides the built-in inside that scope.
 
 ### Examples
 
-The `examples/` folder has runnable programs: `example1.lch`, `demo.lch` (functions, recursion, lists), `fizzbuzz.lch`, `loops.lch` (`break`, `continue`, and `in`), `lists_and_dicts.lch` (a word counter, list editing, nested data), `strings.lch` (f-strings and string methods), and `papercuts.lch` (escapes, slicing, `outer`, and `try`/`except`).
+The `examples/` folder has runnable programs: `example1.lch`, `demo.lch` (functions, recursion, lists), `fizzbuzz.lch`, `loops.lch` (`break`, `continue`, and `in`), `lists_and_dicts.lch` (a word counter, list editing, nested data), `strings.lch` (f-strings and string methods), `papercuts.lch` (escapes, slicing, `outer`, and `try`/`except`), and `stdlib.lch` (`min`, `max`, `sum`, `round`, `sort`, and friends).
 
 ### Error messages
 
@@ -407,10 +429,10 @@ Done:
 - [x] Slicing
 - [x] A way for functions to modify outer variables (`outer`)
 - [x] `try` / `except` / `throw`
+- [x] A small standard library (`min`, `max`, `sum`, `abs`, `round`, `sort`, `type`)
 
 Next:
 
-- [ ] A small standard library (`min`, `max`, `sum`, `abs`, `round`, `sort`, `type`)
 - [ ] Compile to bytecode and run on a small stack VM
 
 ## License

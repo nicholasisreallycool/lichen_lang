@@ -360,6 +360,79 @@ def arity_message(name, fewest, most, got):
     return f"{name}() takes {fewest} or {most} arguments but got {got}"
 
 
+# ---------- small standard library: min max sum abs round sort type ----------
+
+def _check_orderable(name, values):
+    """Everything must be a number, or everything a string (the rule < uses)."""
+    for v in values:
+        if not (is_number(v) or isinstance(v, str)):
+            raise LichenRuntimeError(
+                f"{name}() can only compare numbers or strings, got {type_name(v)}")
+    for v in values[1:]:
+        if is_number(v) != is_number(values[0]):
+            raise LichenRuntimeError(
+                f"{name}() can't compare {type_name(values[0])} and {type_name(v)}")
+
+
+def _min_max(name, pick, args):
+    if len(args) == 1:
+        if not isinstance(args[0], list):
+            raise LichenRuntimeError(f"{name}() needs a list, or two or more values")
+        values = args[0]
+        if not values:
+            raise LichenRuntimeError(f"{name}() can't be given an empty list")
+    else:
+        values = list(args)
+    _check_orderable(name, values)
+    return pick(values)
+
+
+def _min(*args):
+    return _min_max("min", min, args)
+
+
+def _max(*args):
+    return _min_max("max", max, args)
+
+
+def _sum(items):
+    if not isinstance(items, list):
+        raise LichenRuntimeError(f"sum() needs a list, got {type_name(items)}")
+    for i, item in enumerate(items):
+        if not is_number(item):
+            raise LichenRuntimeError(
+                f"sum() needs a list of numbers, but item {i} is a {type_name(item)}")
+    return sum(items)
+
+
+def _abs(x):
+    if not is_number(x):
+        raise LichenRuntimeError(f"abs() needs a number, got {type_name(x)}")
+    return abs(x)
+
+
+def _round(x, digits=None):
+    if not is_number(x):
+        raise LichenRuntimeError(f"round() needs a number, got {type_name(x)}")
+    if digits is not None and (not isinstance(digits, int) or isinstance(digits, bool)):
+        raise LichenRuntimeError("round() digits must be a whole number")
+    try:
+        return round(x) if digits is None else round(x, digits)
+    except (OverflowError, ValueError):
+        raise LichenRuntimeError("round() can't round that number")
+
+
+def _sort(items):
+    if not isinstance(items, list):
+        raise LichenRuntimeError(f"sort() needs a list, got {type_name(items)}")
+    _check_orderable("sort", items)
+    return sorted(items)  # a new list; the original is left alone
+
+
+def _type(x):
+    return type_name(x)
+
+
 BUILTINS = [
     Builtin("print", _print, 0, None),
     Builtin("len", _len, 1, 1),
@@ -372,6 +445,13 @@ BUILTINS = [
     Builtin("keys", _keys, 1, 1),
     Builtin("values", _values, 1, 1),
     Builtin("remove", _remove, 2, 2),
+    Builtin("min", _min, 1, None),
+    Builtin("max", _max, 1, None),
+    Builtin("sum", _sum, 1, 1),
+    Builtin("abs", _abs, 1, 1),
+    Builtin("round", _round, 1, 2),
+    Builtin("sort", _sort, 1, 1),
+    Builtin("type", _type, 1, 1),
 ]
 
 
